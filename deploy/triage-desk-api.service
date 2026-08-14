@@ -1,0 +1,15 @@
+[Unit]
+Description=TriageDesk API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/triage-desk/apps/api
+ExecStart=/usr/bin/pnpm start
+Restart=on-failure
+RestartSec=3
+MemoryMax=400M
+
+[Install]
+WantedBy=multi-user.target

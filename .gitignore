@@ -1,0 +1,17 @@
+node_modules
+dist
+.env
+*.db
+*.db-journal
+.pg-data
+apps/api/prisma/dev.db
+apps/api/generated
+.DS_Store
+*.tgz
+.agents/
+.cursor/
+docs/
+AGENTS.md
+CLAUDE.md
+*.tsbuildinfo
+

@@ -1,0 +1,64 @@
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #0e1117;
+}
+
+a {
+  color: inherit;
+}
+
+.mast {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: 24px !important;
+  border-bottom: 1px solid #2a3348;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.brand span {
+  color: #8b93a7;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #8b93a7;
+}
+
+.who b {
+  color: #e8b86d;
+  font-weight: 500;
+}
+
+.stage {
+  padding: 28px;
+  max-width: 1080px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.auth-card {
+  width: min(420px, calc(100% - 32px));
+  margin: 12vh auto 0;
+}
+
+.ant-table-row {
+  cursor: pointer;
+}

@@ -1,0 +1,24 @@
+{
+  "name": "triage-desk",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm --parallel --filter @triagedesk/api --filter @triagedesk/web dev",
+    "dev:api": "pnpm --filter @triagedesk/api dev",
+    "dev:web": "pnpm --filter @triagedesk/web dev",
+    "db:up": "pnpm --filter @triagedesk/api db:up",
+    "db:migrate": "pnpm --filter @triagedesk/api db:migrate",
+    "db:seed": "pnpm --filter @triagedesk/api db:seed"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "prisma",
+      "@prisma/client",
+      "@prisma/engines",
+      "@embedded-postgres/windows-x64"
+    ]
+  }
+}

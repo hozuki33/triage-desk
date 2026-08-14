@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int        @id @default(autoincrement())
+  username        String     @unique
+  passwordHash    String
+  role            String     @default("user")
+  createdAt       DateTime   @default(now())
+  authoredTickets Ticket[]   @relation("TicketAuthor")
+  assignedTickets Ticket[]   @relation("TicketAssignee")
+  auditLogs       AuditLog[]
+}
+
+model Ticket {
+  id         Int           @id @default(autoincrement())
+  title      String
+  content    String
+  category   String?
+  status     String        @default("pending_classify")
+  version    Int           @default(0)
+  authorId   Int
+  author     User          @relation("TicketAuthor", fields: [authorId], references: [id])
+  assigneeId Int?
+  assignee   User?         @relation("TicketAssignee", fields: [assigneeId], references: [id])
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  replies    TicketReply[]
+  traces     AgentTrace[]
+  audits     AuditLog[]
+
+  @@index([status])
+  @@index([authorId])
+  @@index([assigneeId])
+}
+
+model TicketReply {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  content   String
+  source    String
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+model AgentTrace {
+  id          Int      @id @default(autoincrement())
+  ticketId    Int
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  toolName    String
+  input       Json
+  output      Json
+  confidence  Float?
+  durationMs  Int
+  createdAt   DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+model KnowledgeDoc {
+  id         Int              @id @default(autoincrement())
+  title      String
+  content    String
+  status     String           @default("ready")
+  chunkCount Int              @default(0)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  chunks     KnowledgeChunk[]
+}
+
+model KnowledgeChunk {
+  id        Int          @id @default(autoincrement())
+  docId     Int
+  doc       KnowledgeDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
+  ordinal   Int
+  content   String
+  createdAt DateTime     @default(now())
+
+  @@index([docId])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  ticketId   Int?
+  ticket     Ticket?  @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  actorId    Int
+  actor      User     @relation(fields: [actorId], references: [id])
+  action     String
+  fromStatus String?
+  toStatus   String?
+  detail     Json
+  createdAt  DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([createdAt])
+  @@index([actorId])
+}
