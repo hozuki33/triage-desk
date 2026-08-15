@@ -1,18 +1,19 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import { ConfigProvider, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "./App";
-import { InboxPage } from "./pages/InboxPage";
-import { LoginPage } from "./pages/LoginPage";
-import { NewTicketPage } from "./pages/NewTicketPage";
-import { RegisterPage } from "./pages/RegisterPage";
-import { KnowledgePage } from "./pages/KnowledgePage";
-import { AuditPage } from "./pages/AuditPage";
-import { TicketPage } from "./pages/TicketPage";
 import { getToken } from "./session";
 import "./styles.css";
+
+const InboxPage = lazy(() => import("./pages/InboxPage").then((module) => ({ default: module.InboxPage })));
+const LoginPage = lazy(() => import("./pages/LoginPage").then((module) => ({ default: module.LoginPage })));
+const NewTicketPage = lazy(() => import("./pages/NewTicketPage").then((module) => ({ default: module.NewTicketPage })));
+const RegisterPage = lazy(() => import("./pages/RegisterPage").then((module) => ({ default: module.RegisterPage })));
+const KnowledgePage = lazy(() => import("./pages/KnowledgePage").then((module) => ({ default: module.KnowledgePage })));
+const AuditPage = lazy(() => import("./pages/AuditPage").then((module) => ({ default: module.AuditPage })));
+const TicketPage = lazy(() => import("./pages/TicketPage").then((module) => ({ default: module.TicketPage })));
 
 function GuestOnly({ children }: { children: React.ReactNode }) {
   if (getToken()) {
@@ -38,7 +39,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       }}
     >
       <BrowserRouter>
-        <Routes>
+        <Suspense fallback={<div className="route-loading">正在装载工作台…</div>}>
+          <Routes>
           <Route
             path="/login"
             element={
@@ -63,7 +65,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/audit" element={<AuditPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/inbox" replace />} />
-        </Routes>
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </ConfigProvider>
   </React.StrictMode>,

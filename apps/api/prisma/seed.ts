@@ -14,7 +14,7 @@ const seeds = [
 for (const seed of seeds) {
   await prisma.user.upsert({
     where: { username: seed.username },
-    update: { role: seed.role, passwordHash },
+    update: process.env.RESET_DEMO_PASSWORDS === "true" ? { role: seed.role, passwordHash } : { role: seed.role },
     create: { username: seed.username, role: seed.role, passwordHash },
   });
 }
@@ -71,5 +71,5 @@ for (const item of knowledgeSeeds) {
 }
 
 await prisma.$disconnect();
-console.log("Seeded admin / agent / user  (password: desk-2026)");
+console.log("Ensured admin / agent / user accounts (new accounts use password: desk-2026; existing passwords preserved)");
 console.log("Seeded knowledge: 退款时效说明 / 物流延误处理规范");

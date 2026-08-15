@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../lib/prisma.js";
 import { indexDocument } from "../lib/knowledge.js";
 import { writeAudit } from "../lib/ticket-lock.js";
+import { evaluateRetrieval } from "../lib/retrieval-evaluation.js";
 
 export async function knowledgeRoutes(app: FastifyInstance) {
   app.addHook("preHandler", app.authenticate);
@@ -14,6 +15,13 @@ export async function knowledgeRoutes(app: FastifyInstance) {
       orderBy: { updatedAt: "desc" },
     });
     return { docs };
+  });
+
+  app.get("/api/knowledge/evaluation", async (request, reply) => {
+    if (request.user.role !== "admin") {
+      return reply.code(403).send({ message: "只有管理员可以运行检索评测" });
+    }
+    return { evaluation: await evaluateRetrieval() };
   });
 
   app.post("/api/knowledge", async (request, reply) => {

@@ -7,7 +7,10 @@
     "dev:web": "pnpm --filter @triagedesk/web dev",
     "db:up": "pnpm --filter @triagedesk/api db:up",
     "db:migrate": "pnpm --filter @triagedesk/api db:migrate",
-    "db:seed": "pnpm --filter @triagedesk/api db:seed"
+    "db:seed": "pnpm --filter @triagedesk/api db:seed",
+    "test": "pnpm --filter @triagedesk/api test",
+    "typecheck": "pnpm --filter @triagedesk/api typecheck && pnpm --filter @triagedesk/web exec tsc -b",
+    "build": "pnpm typecheck && pnpm --filter @triagedesk/web build"
   },
   "engines": {
     "node": ">=20"

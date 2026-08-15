@@ -1,7 +1,7 @@
-import { Button, Form, Input, Modal, Space, Table, Tag, Typography, Upload, message } from "antd";
+import { Button, Card, Form, Input, Modal, Progress, Space, Table, Tag, Typography, Upload, message } from "antd";
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { api, type KnowledgeDoc } from "../api";
+import { api, type KnowledgeDoc, type RetrievalEvaluation } from "../api";
 import { getUser } from "../session";
 
 export function KnowledgePage() {
@@ -10,6 +10,8 @@ export function KnowledgePage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const [evaluation, setEvaluation] = useState<RetrievalEvaluation | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
   const [form] = Form.useForm<{ title: string; content: string }>();
 
   async function load() {
@@ -43,10 +45,40 @@ export function KnowledgePage() {
             上传条文后会切分入库。Agent 起草时检索片段并写进确认卡，来访看不到原文库。
           </Typography.Text>
         </div>
-        <Button type="primary" onClick={() => setOpen(true)}>
-          录入条文
-        </Button>
+        <Space>
+          <Button
+            loading={evaluating}
+            onClick={() => {
+              setEvaluating(true);
+              void api
+                .evaluateKnowledge()
+                .then((data) => setEvaluation(data.evaluation))
+                .catch((err) => message.error(err instanceof Error ? err.message : "评测失败"))
+                .finally(() => setEvaluating(false));
+            }}
+          >
+            运行检索评测
+          </Button>
+          <Button type="primary" onClick={() => setOpen(true)}>
+            录入条文
+          </Button>
+        </Space>
       </Space>
+      {evaluation ? (
+        <Card title="检索评测" style={{ marginBottom: 16 }}>
+          <Space size="large" wrap>
+            <Progress type="circle" size={88} percent={Math.round(evaluation.accuracy * 100)} />
+            <div>
+              <Typography.Text strong>
+                {evaluation.passed}/{evaluation.total} 用例通过
+              </Typography.Text>
+              <Typography.Paragraph type="secondary" style={{ margin: "6px 0 0" }}>
+                相关问题 Top-1 {Math.round(evaluation.relevantTop1Accuracy * 100)}% · 无关问题拒绝率 {Math.round(evaluation.rejectionAccuracy * 100)}%
+              </Typography.Paragraph>
+            </div>
+          </Space>
+        </Card>
+      ) : null}
       <Table
         rowKey="id"
         loading={loading}

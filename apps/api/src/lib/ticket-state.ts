@@ -47,6 +47,7 @@ const transitions: Record<TicketStatus, Partial<Record<TicketEvent, TicketStatus
   in_progress: {
     save_draft: "pending_confirm",
     agent_ok: "pending_confirm",
+    agent_fail: "classify_failed",
     close: "closed",
   },
   pending_confirm: {

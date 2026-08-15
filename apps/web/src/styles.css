@@ -9,6 +9,14 @@ body {
   background: #0e1117;
 }
 
+.route-loading {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: #a9b4c8;
+  letter-spacing: 0.08em;
+}
+
 a {
   color: inherit;
 }

@@ -3,6 +3,7 @@ import { retrieveKnowledge } from "../lib/knowledge.js";
 import { transition } from "../lib/ticket-state.js";
 import { applyTicketChange, HttpError } from "../lib/ticket-lock.js";
 import { classifyTicket, draftTicket } from "./tools.js";
+import { replySourceForProvider } from "./execution.js";
 
 const CONFIDENCE_THRESHOLD = 0.7;
 
@@ -43,13 +44,13 @@ export async function runTicketAgent(
   await trace({
     ticketId,
     toolName: "classify",
-    input: { title: ticket.title, content: ticket.content },
-    output: classified,
+    input: { titleLength: ticket.title.length, contentLength: ticket.content.length },
+    output: { category: classified.category, confidence: classified.confidence, provider: classified.provider, executionStatus: classified.executionStatus, fallbackCode: classified.fallbackCode },
     confidence: classified.confidence,
     startedAt: classifyStarted,
   });
 
-  if (classified.confidence < CONFIDENCE_THRESHOLD) {
+  if (classified.executionStatus === "degraded" || classified.confidence < CONFIDENCE_THRESHOLD) {
     const status = transition(ticket.status, "agent_fail");
     await applyTicketChange({
       id: ticketId,
@@ -59,7 +60,7 @@ export async function runTicketAgent(
       fromStatus: ticket.status,
       toStatus: status,
       data: { status, category: classified.category },
-      detail: { category: classified.category, confidence: classified.confidence },
+      detail: { category: classified.category, confidence: classified.confidence, provider: classified.provider, executionStatus: classified.executionStatus, fallbackCode: classified.fallbackCode },
     });
     return { status, classified };
   }
@@ -69,7 +70,7 @@ export async function runTicketAgent(
   await trace({
     ticketId,
     toolName: "retrieve",
-    input: { query: `${ticket.title} ${ticket.content}`.slice(0, 200) },
+    input: { queryLength: ticket.title.length + ticket.content.length + 1, limit: 3 },
     output: {
       count: hits.length,
       titles: hits.map((hit) => hit.title),
@@ -84,9 +85,24 @@ export async function runTicketAgent(
     ticketId,
     toolName: "draft_reply",
     input: { category: classified.category, citations: hits.map((hit) => hit.title) },
-    output: drafted,
+    output: { provider: drafted.provider, executionStatus: drafted.executionStatus, fallbackCode: drafted.fallbackCode, characterCount: drafted.draft.length },
     startedAt: draftStarted,
   });
+
+  if (drafted.executionStatus === "degraded") {
+    const status = transition(ticket.status, "agent_fail");
+    await applyTicketChange({
+      id: ticketId,
+      expectedVersion: ctx.expectedVersion,
+      actorId: ctx.actorId,
+      action: "agent_fail",
+      fromStatus: ticket.status,
+      toStatus: status,
+      data: { status, category: classified.category },
+      detail: { stage: "draft_reply", provider: drafted.provider, executionStatus: drafted.executionStatus, fallbackCode: drafted.fallbackCode },
+    });
+    return { status, classified, drafted };
+  }
 
   const status = transition(ticket.status, "agent_ok");
   await applyTicketChange({
@@ -97,20 +113,20 @@ export async function runTicketAgent(
     fromStatus: ticket.status,
     toStatus: status,
     data: { status, category: classified.category },
-    detail: { category: classified.category, citations: hits.map((hit) => hit.title) },
+    detail: { category: classified.category, citations: hits.map((hit) => hit.title), provider: drafted.provider, executionStatus: drafted.executionStatus },
     work: async (tx) => {
       const existingDraft = await tx.ticketReply.findFirst({
-        where: { ticketId, source: { in: ["draft", "ai"] } },
+        where: { ticketId, source: { in: ["draft", "ai", "llm", "rules"] } },
         orderBy: { createdAt: "desc" },
       });
       if (existingDraft) {
         await tx.ticketReply.update({
           where: { id: existingDraft.id },
-          data: { content: drafted.draft, source: "ai" },
+          data: { content: drafted.draft, source: replySourceForProvider(drafted.provider) },
         });
       } else {
         await tx.ticketReply.create({
-          data: { ticketId, content: drafted.draft, source: "ai" },
+          data: { ticketId, content: drafted.draft, source: replySourceForProvider(drafted.provider) },
         });
       }
     },

@@ -1,9 +1,11 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { getAllowedActions, transition, type TicketEvent } from "../lib/ticket-state.js";
 import { runTicketAgent } from "../agent/orchestrator.js";
 import { CATEGORIES } from "../lib/categories.js";
 import { applyTicketChange, HttpError, readVersion, writeAudit } from "../lib/ticket-lock.js";
+import { rejectAssignment, ticketWhere } from "../lib/ticket-visibility.js";
 
 const ticketInclude = {
   author: { select: { id: true, username: true, role: true } },
@@ -11,22 +13,6 @@ const ticketInclude = {
   replies: { orderBy: { createdAt: "asc" as const } },
   traces: { orderBy: { createdAt: "asc" as const } },
 };
-
-function ticketWhere(user: { sub: number; role: string }) {
-  if (user.role === "admin") return {};
-  if (user.role === "agent") {
-    return {
-      OR: [
-        { assigneeId: user.sub },
-        {
-          assigneeId: null,
-          status: { in: ["pending", "pending_classify", "classify_failed", "pending_confirm"] },
-        },
-      ],
-    };
-  }
-  return { authorId: user.sub };
-}
 
 function withActions(
   ticket: {
@@ -196,7 +182,7 @@ export async function ticketRoutes(app: FastifyInstance) {
         data: { status },
         work: async (tx) => {
           const latestDraft = await tx.ticketReply.findFirst({
-            where: { ticketId: id, source: { in: ["draft", "ai"] } },
+            where: { ticketId: id, source: { in: ["draft", "ai", "llm", "rules"] } },
             orderBy: { createdAt: "desc" },
           });
           if (latestDraft) {
@@ -243,7 +229,7 @@ export async function ticketRoutes(app: FastifyInstance) {
         detail: { edited: Boolean(body) },
         work: async (tx) => {
           const draft = await tx.ticketReply.findFirst({
-            where: { ticketId: id, source: { in: ["draft", "ai"] } },
+            where: { ticketId: id, source: { in: ["draft", "ai", "llm", "rules"] } },
             orderBy: { createdAt: "desc" },
           });
           if (!draft) {
@@ -323,7 +309,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     if (request.user.role !== "agent" && request.user.role !== "admin") {
       return reply.code(403).send({ message: "只有客服可以驳回草稿" });
     }
-    return applyEvent(request, reply, "reject_draft");
+    return applyEvent(request, reply, "reject_draft", rejectAssignment(request.user.sub));
   });
 
   app.post("/api/tickets/:id/cancel", async (request, reply) => {
@@ -340,7 +326,7 @@ async function applyEvent(
   reply: FastifyReply,
   event: TicketEvent,
   extra: { assigneeId?: number } = {},
-  detail: Record<string, unknown> = {},
+  detail: Prisma.InputJsonValue = {},
 ) {
   const id = Number((request.params as { id: string }).id);
   const existing = await prisma.ticket.findFirst({

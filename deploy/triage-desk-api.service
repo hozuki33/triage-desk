@@ -4,12 +4,17 @@ After=network.target postgresql.service
 
 [Service]
 Type=simple
-User=root
+User=triage-desk
+Group=triage-desk
 WorkingDirectory=/opt/triage-desk/apps/api
 ExecStart=/usr/bin/pnpm start
 Restart=on-failure
 RestartSec=3
 MemoryMax=400M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
 
 [Install]
 WantedBy=multi-user.target
