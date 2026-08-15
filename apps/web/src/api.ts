@@ -27,7 +27,7 @@ export type PublicUser = {
 export type TicketReply = {
   id: number;
   content: string;
-  source: "draft" | "human" | "ai";
+  source: "draft" | "human" | "ai" | "llm" | "rules";
   createdAt: string;
 };
 
@@ -41,10 +41,33 @@ export type KnowledgeDoc = {
   updatedAt: string;
 };
 
+export type RetrievalEvaluation = {
+  total: number;
+  passed: number;
+  accuracy: number;
+  relevantTop1Accuracy: number;
+  rejectionAccuracy: number;
+  cases: Array<{
+    query: string;
+    expectedTitle: string | null;
+    actualTitle: string | null;
+    passed: boolean;
+    score: number | null;
+  }>;
+};
+
 export type AgentTrace = {
   id: number;
   toolName: string;
-  output: Record<string, unknown>;
+  output: {
+    category?: string;
+    titles?: string[];
+    provider?: "llm" | "rules";
+    executionStatus?: "ok" | "disabled" | "degraded";
+    fallbackCode?: "authentication" | "rate_limit" | "timeout" | "provider_error";
+    characterCount?: number;
+    count?: number;
+  };
   confidence: number | null;
   durationMs: number;
   createdAt: string;
@@ -101,6 +124,7 @@ export const actionLabel: Record<string, string> = {
   manual_classify: "人工分类",
   knowledge_create: "录入知识",
   knowledge_delete: "删除知识",
+  repair_assignment: "修复工单归属",
 };
 
 export const categoryLabel: Record<string, string> = {
@@ -205,6 +229,7 @@ export const api = {
     }),
   agents: () => request<{ agents: PublicUser[] }>("/api/users/agents"),
   knowledge: () => request<{ docs: KnowledgeDoc[] }>("/api/knowledge"),
+  evaluateKnowledge: () => request<{ evaluation: RetrievalEvaluation }>("/api/knowledge/evaluation"),
   createKnowledge: (title: string, content: string) =>
     request<{ doc: KnowledgeDoc }>("/api/knowledge", {
       method: "POST",

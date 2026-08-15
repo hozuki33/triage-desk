@@ -7,8 +7,10 @@ import { ticketRoutes } from "./routes/tickets.js";
 import { userRoutes } from "./routes/users.js";
 import { knowledgeRoutes } from "./routes/knowledge.js";
 import { auditRoutes } from "./routes/audit.js";
+import { ensureSearchInfrastructure } from "./lib/search-infrastructure.js";
 
 export async function buildApp() {
+  await ensureSearchInfrastructure();
   const app = Fastify({ logger: true });
 
   await app.register(cors, {

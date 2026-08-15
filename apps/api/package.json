@@ -5,9 +5,16 @@
   "scripts": {
     "dev": "tsx watch --env-file=.env src/server.ts",
     "start": "tsx --env-file=.env src/server.ts",
+    "test:unit": "tsx --test src/agent/execution.test.ts src/agent/llm-config.test.ts src/lib/knowledge.test.ts src/lib/retrieval-evaluation.test.ts src/lib/ticket-state.test.ts src/lib/ticket-visibility.test.ts",
+    "test:integration": "tsx --env-file=.env scripts/run-integration-tests.ts",
+    "test": "pnpm test:unit && pnpm test:integration",
+    "typecheck": "tsc --noEmit",
     "db:up": "tsx scripts/pg-up.ts",
     "db:migrate": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:repair": "tsx --env-file=.env scripts/repair-ticket-ownership.ts",
+    "eval:retrieval": "tsx --env-file=.env scripts/evaluate-retrieval.ts",
+    "verify:llm": "tsx --env-file=.env scripts/verify-llm.ts",
     "db:reset": "prisma migrate reset --force"
   },
   "prisma": {

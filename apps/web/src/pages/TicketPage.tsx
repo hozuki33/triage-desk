@@ -14,8 +14,23 @@ const statusColor: Record<TicketStatus, string> = {
   closed: "default",
 };
 
+const executionLabel = {
+  ok: { text: "LLM", color: "green" },
+  disabled: { text: "本地规则", color: "default" },
+  degraded: { text: "模型降级", color: "red" },
+} as const;
+
+const fallbackLabel = {
+  authentication: "模型鉴权失败，请检查服务端密钥",
+  rate_limit: "模型服务触发限流，请稍后重试",
+  timeout: "模型服务超时，请稍后重试",
+  provider_error: "模型服务异常，已转人工处理",
+} as const;
+
 function latestDraft(ticket: Ticket) {
-  return [...ticket.replies].reverse().find((item) => item.source === "draft" || item.source === "ai");
+  return [...ticket.replies]
+    .reverse()
+    .find((item) => ["draft", "ai", "llm", "rules"].includes(item.source));
 }
 
 export function TicketPage() {
@@ -152,7 +167,13 @@ export function TicketPage() {
           title="确认卡"
           extra={
             <Typography.Text type="secondary">
-              {draftItem?.source === "ai" ? "Agent 预填 · 人确认后才发送" : "人确认后才发送"}
+              {draftItem?.source === "llm"
+                ? "LLM 草稿 · 人确认后才发送"
+                : draftItem?.source === "ai"
+                  ? "历史 Agent 草稿（来源未知）· 人确认后才发送"
+                : draftItem?.source === "rules"
+                  ? "规则草稿 · 人确认后才发送"
+                  : "人确认后才发送"}
             </Typography.Text>
           }
         >
@@ -201,18 +222,25 @@ export function TicketPage() {
                         : "起草回复"}
                   </Typography.Text>
                   <Typography.Text type="secondary"> · {item.durationMs}ms</Typography.Text>
+                  {item.output.executionStatus ? (
+                    <Tag color={executionLabel[item.output.executionStatus].color} style={{ marginInlineStart: 8 }}>
+                      {executionLabel[item.output.executionStatus].text}
+                    </Tag>
+                  ) : null}
                   {item.confidence != null ? (
                     <Typography.Text type="secondary"> · 置信度 {(item.confidence * 100).toFixed(0)}%</Typography.Text>
                   ) : null}
                   <Typography.Paragraph style={{ margin: "6px 0 0" }} type="secondary">
-                    {typeof item.output.reason === "string"
-                      ? item.output.reason
+                    {item.output.executionStatus === "degraded" && item.output.fallbackCode
+                      ? fallbackLabel[item.output.fallbackCode]
+                      : typeof item.output.category === "string"
+                      ? `分类为「${categoryLabel[item.output.category] ?? item.output.category}」`
                       : Array.isArray(item.output.titles)
                         ? item.output.titles.length
                           ? `命中 ${item.output.titles.join("、")}`
                           : "没有匹配条文"
-                        : typeof item.output.draft === "string"
-                          ? "已生成回复草稿"
+                        : typeof item.output.characterCount === "number"
+                          ? `已生成 ${item.output.characterCount} 字回复草稿`
                           : JSON.stringify(item.output)}
                   </Typography.Paragraph>
                 </div>
