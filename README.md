@@ -10,20 +10,20 @@
 - 工单状态流转、认领与派单
 - 确认卡：草稿可改，确认发送或驳回
 - 分类与回复起草；低置信度转人工
-- 知识库上传与引用
+- 知识库上传、混合检索与引用
 - 操作审计；并发用版本号控制
 - Agent 执行追踪：区分真实 LLM、本地规则与模型异常降级，不把失败伪装成 AI 成功
 
 ## 技术栈
 
-React 18 · Ant Design 6 · Fastify · Prisma · PostgreSQL
+React 18 · TypeScript · Ant Design · Fastify · Prisma · PostgreSQL / pgvector · LangChain · Transformers.js · Docker
 
-## Agent 执行模式
+## 核心设计
 
-- 未配置 `DEEPSEEK_API_KEY` / `OPENAI_API_KEY`：使用确定性本地规则，追踪标记为“本地规则”，便于离线开发。
-- 已配置 Key 且调用成功：分类与起草由兼容 OpenAI 协议的模型完成，追踪标记为“LLM”。
-- 已配置 Key 但鉴权、限流、超时或服务异常：仅记录经过脱敏的错误代码，工单转入人工分类。
-
+- 以状态机约束工单流转，结合角色权限、版本号乐观锁和审计日志保证协作安全。
+- DeepSeek 负责分类与回复起草，知识检索提供依据，客服确认后才正式发送。
+- 本地中文 Embedding + pgvector 语义检索，与 `pg_trgm` 关键词检索通过 RRF 融合；Embedding 异常时自动降级。
+- 执行追踪只记录模型来源、检索模式和脱敏状态，不保存密钥、完整提示词或原始向量。
 
 ## 本地运行
 
@@ -52,3 +52,11 @@ pnpm dev
 - API http://127.0.0.1:3001/api/health
 
 试用账号（密码均为 `desk-2026`）：`user` / `agent` / `admin`
+
+## 验证
+
+```bash
+pnpm test
+pnpm build
+pnpm --filter @triagedesk/api eval:retrieval
+```
