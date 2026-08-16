@@ -29,18 +29,46 @@ React 18 · TypeScript · Ant Design · Fastify · Prisma · PostgreSQL / pgvect
 
 需要 Node 20+、pnpm 和 Docker Desktop。
 
+### 1. 准备配置
+
 ```bash
 pnpm install
+```
+
+复制环境变量文件：
+
+```powershell
+# Windows PowerShell
+Copy-Item apps/api/.env.example apps/api/.env
+```
+
+```bash
+# macOS / Linux
 cp apps/api/.env.example apps/api/.env
 ```
 
-终端一：启动数据库（保持不关）
+按需修改 `apps/api/.env`。本地数据库密码取自其中的 `DATABASE_URL`，模型调用需要填写对应的 API Key；`.env` 已被 Git 忽略。
+
+### 2. 启动 Docker 数据库
+
+打开 Docker Desktop，等待 Docker Engine 启动。可用下面两条命令检查：
 
 ```bash
-pnpm db:up
+docker version
+docker compose version
 ```
 
-终端二：
+如果提示找不到 `docker`，请重新打开终端；自定义安装目录的用户还需将 Docker 的 `resources/bin` 目录加入系统 `PATH`。
+
+然后在项目根目录执行：
+
+```bash
+pnpm db:up:detached
+```
+
+该命令会自动下载 pgvector PostgreSQL 镜像，并在后台创建数据库，无需手动创建容器。
+
+### 3. 初始化并启动项目
 
 ```bash
 pnpm db:migrate
@@ -52,6 +80,14 @@ pnpm dev
 - API http://127.0.0.1:3001/api/health
 
 试用账号（密码均为 `desk-2026`）：`user` / `agent` / `admin`
+
+停止项目后，如需关闭数据库容器：
+
+```bash
+pnpm db:down
+```
+
+数据库数据会保留在 Docker Volume 中，下次运行只需再次执行 `pnpm db:up:detached`。
 
 ## 验证
 
