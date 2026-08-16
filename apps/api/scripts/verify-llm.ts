@@ -7,7 +7,7 @@ const content = "订单 TD-LLM-CHECK 的物流五天没有更新，请问可以�
 
 try {
   const classification = await classifyTicket(title, content);
-  const hits = await retrieveKnowledge(`${title}\n${content}`, 3);
+  const hits = await retrieveKnowledge(`${title}\n${content}`, 3, classification.category);
   const draft = await draftTicket(title, content, classification.category, hits);
   const evidenceIncluded = hits.some((hit) => draft.draft.includes(hit.title));
   const actionGuidance = /补发|退款|催派|核实/.test(draft.draft);
@@ -17,10 +17,11 @@ try {
     classification: {
       provider: classification.provider,
       executionStatus: classification.executionStatus,
+      fallbackCode: classification.fallbackCode ?? null,
       category: classification.category,
     },
     retrieval: {
-      mode: "hybrid_pg_trgm",
+      mode: "hybrid_pgvector_rrf",
       hitCount: hits.length,
       topTitle: hits[0]?.title ?? null,
     },

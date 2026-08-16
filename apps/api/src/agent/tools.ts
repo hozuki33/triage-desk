@@ -7,7 +7,7 @@ import {
   runProvider,
   type ProviderMetadata,
 } from "./execution.js";
-import { hasAnyLlmKey, resolveLlmConfig } from "./llm-config.js";
+import { hasAnyLlmKey, llmModelKwargs, resolveLlmConfig } from "./llm-config.js";
 
 type ClassifyCore = {
   category: TicketCategory;
@@ -71,6 +71,7 @@ async function classifyByLlm(title: string, content: string): Promise<ClassifyCo
     configuration: {
       baseURL: config.baseURL,
     },
+    modelKwargs: llmModelKwargs(config.provider),
   });
   const schema = z.object({
     category: z.enum(CATEGORIES),
@@ -104,6 +105,7 @@ async function draftByLlm(
     configuration: {
       baseURL: config.baseURL,
     },
+    modelKwargs: llmModelKwargs(config.provider),
   });
   const knowledge = formatCitations(hits) || "（知识库暂无匹配片段，不要编造政策。）";
   const result = await llm.invoke([

@@ -7,8 +7,17 @@ export type LlmConfig = {
   model: string;
 };
 
+/**
+ * DeepSeek V4 enables thinking by default, but its thinking mode rejects the
+ * forced tool choice used by LangChain structured output. Keep classification
+ * and drafting on the same predictable, non-thinking request path.
+ */
+export function llmModelKwargs(provider: LlmProvider): Record<string, unknown> {
+  return provider === "deepseek" ? { thinking: { type: "disabled" } } : {};
+}
+
 const DEFAULTS = {
-  deepseek: { baseURL: "https://api.deepseek.com", model: "deepseek-chat" },
+  deepseek: { baseURL: "https://api.deepseek.com", model: "deepseek-v4-flash" },
   openai: { baseURL: "https://api.openai.com/v1", model: "gpt-4o-mini" },
 } as const;
 

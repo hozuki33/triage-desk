@@ -6,6 +6,8 @@
     "dev:api": "pnpm --filter @triagedesk/api dev",
     "dev:web": "pnpm --filter @triagedesk/web dev",
     "db:up": "pnpm --filter @triagedesk/api db:up",
+    "db:up:detached": "pnpm --filter @triagedesk/api db:up:detached",
+    "db:down": "pnpm --filter @triagedesk/api db:down",
     "db:migrate": "pnpm --filter @triagedesk/api db:migrate",
     "db:seed": "pnpm --filter @triagedesk/api db:seed",
     "test": "pnpm --filter @triagedesk/api test",
@@ -21,7 +23,7 @@
       "prisma",
       "@prisma/client",
       "@prisma/engines",
-      "@embedded-postgres/windows-x64"
+      "onnxruntime-node"
     ]
   }
 }

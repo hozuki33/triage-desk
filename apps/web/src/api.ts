@@ -27,6 +27,7 @@ export type PublicUser = {
 export type TicketReply = {
   id: number;
   content: string;
+  category: string | null;
   source: "draft" | "human" | "ai" | "llm" | "rules";
   createdAt: string;
 };
@@ -37,6 +38,13 @@ export type KnowledgeDoc = {
   content: string;
   status: string;
   chunkCount: number;
+  indexErrorCode: string | null;
+  embedding: {
+    embeddingProvider: string | null;
+    embeddingModel: string | null;
+    embeddingVersion: string | null;
+    embeddedAt: string | null;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -46,14 +54,26 @@ export type RetrievalEvaluation = {
   passed: number;
   accuracy: number;
   relevantTop1Accuracy: number;
+  hitAt3: number;
+  meanReciprocalRank: number;
   rejectionAccuracy: number;
+  averageLatencyMs: number;
   cases: Array<{
     query: string;
     expectedTitle: string | null;
     actualTitle: string | null;
+    top3Titles: string[];
     passed: boolean;
+    hitAt3: boolean;
+    reciprocalRank: number;
     score: number | null;
+    latencyMs: number;
   }>;
+};
+
+export type RetrievalEvaluationSuite = {
+  generatedAt: string;
+  modes: Record<"lexical" | "vector" | "hybrid", RetrievalEvaluation>;
 };
 
 export type AgentTrace = {
@@ -67,6 +87,8 @@ export type AgentTrace = {
     fallbackCode?: "authentication" | "rate_limit" | "timeout" | "provider_error";
     characterCount?: number;
     count?: number;
+    mode?: "hybrid" | "vector_only" | "lexical_fallback" | "lexical_only";
+    vectorStatus?: "ok" | "disabled" | "model_unavailable" | "provider_error" | "dimension_mismatch";
   };
   confidence: number | null;
   durationMs: number;
@@ -124,6 +146,7 @@ export const actionLabel: Record<string, string> = {
   manual_classify: "人工分类",
   knowledge_create: "录入知识",
   knowledge_delete: "删除知识",
+  knowledge_reindex: "重建知识索引",
   repair_assignment: "修复工单归属",
 };
 
@@ -229,11 +252,16 @@ export const api = {
     }),
   agents: () => request<{ agents: PublicUser[] }>("/api/users/agents"),
   knowledge: () => request<{ docs: KnowledgeDoc[] }>("/api/knowledge"),
-  evaluateKnowledge: () => request<{ evaluation: RetrievalEvaluation }>("/api/knowledge/evaluation"),
-  createKnowledge: (title: string, content: string) =>
+  evaluateKnowledge: () => request<{ evaluation: RetrievalEvaluationSuite }>("/api/knowledge/evaluation"),
+  reindexKnowledge: (ids?: number[]) =>
+    request<{ results: Array<{ id: number; status: string; chunkCount: number }> }>("/api/knowledge/reindex", {
+      method: "POST",
+      body: JSON.stringify(ids ? { ids } : {}),
+    }),
+  createKnowledge: (title: string, content: string, category?: string) =>
     request<{ doc: KnowledgeDoc }>("/api/knowledge", {
       method: "POST",
-      body: JSON.stringify({ title, content }),
+      body: JSON.stringify({ title, content, category: category || null }),
     }),
   deleteKnowledge: (id: number) =>
     request<{ ok: boolean }>(`/api/knowledge/${id}`, { method: "DELETE" }),

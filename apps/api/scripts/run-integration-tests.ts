@@ -15,6 +15,10 @@ adminUrl.pathname = "/postgres";
 
 const admin = new PrismaClient({ datasources: { db: { url: adminUrl.toString() } } });
 await admin.$executeRawUnsafe(`CREATE DATABASE "${databaseName}"`);
+const testDatabase = new PrismaClient({ datasources: { db: { url: testUrl.toString() } } });
+await testDatabase.$executeRawUnsafe("CREATE EXTENSION IF NOT EXISTS vector");
+await testDatabase.$executeRawUnsafe("CREATE EXTENSION IF NOT EXISTS pg_trgm");
+await testDatabase.$disconnect();
 
 const apiRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const binDir = resolve(apiRoot, "node_modules", ".bin");
@@ -23,6 +27,7 @@ const environment = {
   DATABASE_URL: testUrl.toString(),
   DEEPSEEK_API_KEY: "",
   OPENAI_API_KEY: "",
+  EMBEDDING_PROVIDER: "disabled",
   JWT_SECRET: "integration-test-secret",
 };
 

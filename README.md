@@ -27,7 +27,7 @@ React 18 · Ant Design 6 · Fastify · Prisma · PostgreSQL
 
 ## 本地运行
 
-需要 Node 20+ 和 pnpm。
+需要 Node 20+、pnpm 和 Docker Desktop。
 
 ```bash
 pnpm install
@@ -52,4 +52,3 @@ pnpm dev
 - API http://127.0.0.1:3001/api/health
 
 试用账号（密码均为 `desk-2026`）：`user` / `agent` / `admin`
-

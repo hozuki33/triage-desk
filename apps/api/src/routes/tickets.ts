@@ -5,7 +5,7 @@ import { getAllowedActions, transition, type TicketEvent } from "../lib/ticket-s
 import { runTicketAgent } from "../agent/orchestrator.js";
 import { CATEGORIES } from "../lib/categories.js";
 import { applyTicketChange, HttpError, readVersion, writeAudit } from "../lib/ticket-lock.js";
-import { rejectAssignment, ticketWhere } from "../lib/ticket-visibility.js";
+import { rejectAssignment, ticketMutationWhere, ticketWhere } from "../lib/ticket-visibility.js";
 
 const ticketInclude = {
   author: { select: { id: true, username: true, role: true } },
@@ -26,15 +26,19 @@ function withActions(
 ) {
   const replies =
     user.role === "user" ? ticket.replies.filter((item) => item.source === "human") : ticket.replies;
+  const readOnlyTeamHistory =
+    user.role === "agent" && ticket.assigneeId !== null && ticket.assigneeId !== user.sub;
   return {
     ...ticket,
     replies,
     traces: user.role === "user" ? [] : ticket.traces ?? [],
-    allowedActions: getAllowedActions({
-      status: ticket.status,
-      role: user.role,
-      isAuthor: ticket.authorId === user.sub,
-    }),
+    allowedActions: readOnlyTeamHistory
+      ? []
+      : getAllowedActions({
+          status: ticket.status,
+          role: user.role,
+          isAuthor: ticket.authorId === user.sub,
+        }),
   };
 }
 
@@ -163,7 +167,7 @@ export async function ticketRoutes(app: FastifyInstance) {
 
     const id = Number((request.params as { id: string }).id);
     const existing = await prisma.ticket.findFirst({
-      where: { id, ...ticketWhere(request.user) },
+      where: { id, ...ticketMutationWhere(request.user) },
     });
     if (!existing) {
       return reply.code(404).send({ message: "工单不存在" });
@@ -205,7 +209,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     }
     const id = Number((request.params as { id: string }).id);
     const existing = await prisma.ticket.findFirst({
-      where: { id, ...ticketWhere(request.user) },
+      where: { id, ...ticketMutationWhere(request.user) },
     });
     if (!existing) {
       return reply.code(404).send({ message: "工单不存在" });
@@ -254,7 +258,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     }
     const id = Number((request.params as { id: string }).id);
     const existing = await prisma.ticket.findFirst({
-      where: { id, ...ticketWhere(request.user) },
+      where: { id, ...ticketMutationWhere(request.user) },
     });
     if (!existing) {
       return reply.code(404).send({ message: "工单不存在" });
@@ -281,7 +285,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     }
     const id = Number((request.params as { id: string }).id);
     const existing = await prisma.ticket.findFirst({
-      where: { id, ...ticketWhere(request.user) },
+      where: { id, ...ticketMutationWhere(request.user) },
     });
     if (!existing) {
       return reply.code(404).send({ message: "工单不存在" });
@@ -330,7 +334,7 @@ async function applyEvent(
 ) {
   const id = Number((request.params as { id: string }).id);
   const existing = await prisma.ticket.findFirst({
-    where: { id, ...ticketWhere(request.user) },
+    where: { id, ...ticketMutationWhere(request.user) },
   });
   if (!existing) {
     return reply.code(404).send({ message: "工单不存在" });

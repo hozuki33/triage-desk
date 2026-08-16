@@ -8,9 +8,12 @@ User=triage-desk
 Group=triage-desk
 WorkingDirectory=/opt/triage-desk/apps/api
 ExecStart=/usr/bin/pnpm start
+Environment=NODE_OPTIONS=--max-old-space-size=384
 Restart=on-failure
 RestartSec=3
-MemoryMax=400M
+MemoryMax=900M
+CacheDirectory=triage-desk
+CacheDirectoryMode=0750
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict

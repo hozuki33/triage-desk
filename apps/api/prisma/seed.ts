@@ -1,8 +1,7 @@
-import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { chunkText } from "../src/lib/knowledge.js";
+import { indexDocument } from "../src/lib/knowledge.js";
+import { prisma } from "../src/lib/prisma.js";
 
-const prisma = new PrismaClient();
 const passwordHash = await bcrypt.hash("desk-2026", 10);
 
 const seeds = [
@@ -36,6 +35,7 @@ if (visitor) {
 const knowledgeSeeds = [
   {
     title: "退款时效说明",
+    category: "refund_issue",
     content: `原路退回：审核通过后 3 个工作日内到账；银行卡到账可能再延迟 1–2 天。
 用户必须提供订单号，客服才能发起核查。
 超过 7 个工作日仍未到账，可升级财务排查。
@@ -43,6 +43,7 @@ const knowledgeSeeds = [
   },
   {
     title: "物流延误处理规范",
+    category: "delivery_delay",
     content: `超过承诺时效 48 小时未签收，可申请催派。
 物流超过 5 天无更新，用户可选择补发或退款，二者择一。
 签收后发现破损或少件，走产品质量通道，不按物流延误处理。`,
@@ -54,20 +55,12 @@ for (const item of knowledgeSeeds) {
   const doc = existing
     ? await prisma.knowledgeDoc.update({
         where: { id: existing.id },
-        data: { content: item.content, status: "indexing" },
+        data: { content: item.content, category: item.category, status: "indexing" },
       })
     : await prisma.knowledgeDoc.create({
-        data: { title: item.title, content: item.content, status: "indexing" },
+        data: { title: item.title, content: item.content, category: item.category, status: "indexing" },
       });
-  const chunks = chunkText(item.content);
-  await prisma.knowledgeChunk.deleteMany({ where: { docId: doc.id } });
-  await prisma.knowledgeChunk.createMany({
-    data: chunks.map((content, ordinal) => ({ docId: doc.id, ordinal, content })),
-  });
-  await prisma.knowledgeDoc.update({
-    where: { id: doc.id },
-    data: { status: "ready", chunkCount: chunks.length },
-  });
+  await indexDocument(doc.id);
 }
 
 await prisma.$disconnect();

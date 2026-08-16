@@ -11,13 +11,15 @@ if (!/^triage_desk_test_[a-f0-9]{12}$/.test(integrationDatabase)) {
 }
 
 let app: FastifyInstance;
+let adminId: number;
 let agentId: number;
 let visitorAId: number;
 let visitorBId: number;
 let agentToken: string;
+let adminToken: string;
 let visitorAToken: string;
 let visitorBToken: string;
-const usernames = ["itest_agent", "itest_visitor_a", "itest_visitor_b"];
+const usernames = ["itest_admin", "itest_agent", "itest_visitor_a", "itest_visitor_b"];
 
 async function login(username: string) {
   const response = await app.inject({
@@ -34,25 +36,28 @@ before(async () => {
   await prisma.ticket.deleteMany({ where: { author: { username: { in: usernames } } } });
   await prisma.user.deleteMany({ where: { username: { in: usernames } } });
   const passwordHash = await hashPassword("itest-password");
-  const [agent, visitorA, visitorB] = await Promise.all([
-    prisma.user.create({ data: { username: usernames[0], role: "agent", passwordHash } }),
-    prisma.user.create({ data: { username: usernames[1], role: "user", passwordHash } }),
+  const [admin, agent, visitorA, visitorB] = await Promise.all([
+    prisma.user.create({ data: { username: usernames[0], role: "admin", passwordHash } }),
+    prisma.user.create({ data: { username: usernames[1], role: "agent", passwordHash } }),
     prisma.user.create({ data: { username: usernames[2], role: "user", passwordHash } }),
+    prisma.user.create({ data: { username: usernames[3], role: "user", passwordHash } }),
   ]);
+  adminId = admin.id;
   agentId = agent.id;
   visitorAId = visitorA.id;
   visitorBId = visitorB.id;
   app = await buildApp();
-  agentToken = await login(usernames[0]);
-  visitorAToken = await login(usernames[1]);
-  visitorBToken = await login(usernames[2]);
+  adminToken = await login(usernames[0]);
+  agentToken = await login(usernames[1]);
+  visitorAToken = await login(usernames[2]);
+  visitorBToken = await login(usernames[3]);
 });
 
 after(async () => {
   await app.close();
-  await prisma.auditLog.deleteMany({ where: { actorId: { in: [agentId, visitorAId, visitorBId] } } });
+  await prisma.auditLog.deleteMany({ where: { actorId: { in: [adminId, agentId, visitorAId, visitorBId] } } });
   await prisma.ticket.deleteMany({ where: { authorId: { in: [visitorAId, visitorBId] } } });
-  await prisma.user.deleteMany({ where: { id: { in: [agentId, visitorAId, visitorBId] } } });
+  await prisma.user.deleteMany({ where: { id: { in: [adminId, agentId, visitorAId, visitorBId] } } });
   await prisma.$disconnect();
 });
 
@@ -144,18 +149,100 @@ test("a visitor cannot read another visitor's ticket", async () => {
   assert.equal(response.statusCode, 404);
 });
 
+test("an agent can read admin-completed team history but cannot mutate it", async () => {
+  const ticket = await prisma.ticket.create({
+    data: {
+      title: "admin completed history",
+      content: "completed by a different staff member",
+      status: "replied",
+      version: 1,
+      authorId: visitorAId,
+      assigneeId: adminId,
+      replies: { create: { content: "completed response", source: "human" } },
+    },
+  });
+
+  const listed = await app.inject({
+    method: "GET",
+    url: "/api/tickets?status=replied",
+    headers: { authorization: `Bearer ${agentToken}` },
+  });
+  assert.equal(listed.statusCode, 200);
+  const history = listed
+    .json<{ tickets: Array<{ id: number; allowedActions: string[] }> }>()
+    .tickets.find((item) => item.id === ticket.id);
+  assert.ok(history);
+  assert.deepEqual(history.allowedActions, []);
+
+  const detail = await app.inject({
+    method: "GET",
+    url: `/api/tickets/${ticket.id}`,
+    headers: { authorization: `Bearer ${agentToken}` },
+  });
+  assert.equal(detail.statusCode, 200);
+
+  const close = await app.inject({
+    method: "POST",
+    url: `/api/tickets/${ticket.id}/close`,
+    headers: { authorization: `Bearer ${agentToken}` },
+    payload: { version: 1 },
+  });
+  assert.equal(close.statusCode, 404);
+});
+
 test("health reports database and retrieval readiness without secrets", async () => {
   const response = await app.inject({ method: "GET", url: "/api/health" });
   assert.equal(response.statusCode, 200);
   const payload = response.json<{
     ok: boolean;
-    dependencies: { database: string; retrieval: string; llm: string };
+    dependencies: { database: string; retrieval: string; embedding: string; llm: string };
   }>();
   assert.equal(payload.ok, true);
   assert.deepEqual(payload.dependencies, {
     database: "ok",
-    retrieval: "hybrid_pg_trgm",
+    retrieval: "hybrid_pgvector_rrf",
+    embedding: "disabled",
     llm: "rules_only",
   });
   assert.equal(JSON.stringify(payload).includes("sk-"), false);
+});
+
+test("knowledge HTTP indexing records an honest lexical fallback when embedding is disabled", async () => {
+  const created = await app.inject({
+    method: "POST",
+    url: "/api/knowledge",
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: {
+      title: "集成测试知识",
+      content: "退款审核通过后通常在三个工作日内退回原支付银行卡。",
+    },
+  });
+  assert.equal(created.statusCode, 201);
+  const doc = created.json<{ doc: { id: number; status: string; chunkCount: number } }>().doc;
+  assert.equal(doc.status, "ready_lexical");
+  assert.equal(doc.chunkCount, 1);
+
+  const rebuilt = await app.inject({
+    method: "POST",
+    url: "/api/knowledge/reindex",
+    headers: { authorization: `Bearer ${adminToken}` },
+    payload: { ids: [doc.id] },
+  });
+  assert.equal(rebuilt.statusCode, 200);
+  assert.equal(rebuilt.json<{ results: Array<{ status: string }> }>().results[0]?.status, "ready_lexical");
+
+  const listed = await app.inject({
+    method: "GET",
+    url: "/api/knowledge",
+    headers: { authorization: `Bearer ${adminToken}` },
+  });
+  const indexed = listed.json<{ docs: Array<{ id: number; embedding: unknown }> }>().docs.find((item) => item.id === doc.id);
+  assert.equal(indexed?.embedding, null);
+
+  const removed = await app.inject({
+    method: "DELETE",
+    url: `/api/knowledge/${doc.id}`,
+    headers: { authorization: `Bearer ${adminToken}` },
+  });
+  assert.equal(removed.statusCode, 200);
 });

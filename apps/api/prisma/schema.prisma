@@ -66,25 +66,36 @@ model AgentTrace {
 }
 
 model KnowledgeDoc {
-  id         Int              @id @default(autoincrement())
-  title      String
-  content    String
-  status     String           @default("ready")
-  chunkCount Int              @default(0)
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  chunks     KnowledgeChunk[]
+  id             Int              @id @default(autoincrement())
+  title          String
+  content        String
+  category       String?
+  status         String           @default("ready")
+  chunkCount     Int              @default(0)
+  indexErrorCode String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  chunks         KnowledgeChunk[]
+
+  @@index([category])
 }
 
 model KnowledgeChunk {
-  id        Int          @id @default(autoincrement())
-  docId     Int
-  doc       KnowledgeDoc @relation(fields: [docId], references: [id], onDelete: Cascade)
-  ordinal   Int
-  content   String
-  createdAt DateTime     @default(now())
+  id                Int                        @id @default(autoincrement())
+  docId             Int
+  doc               KnowledgeDoc               @relation(fields: [docId], references: [id], onDelete: Cascade)
+  ordinal           Int
+  content           String
+  contentHash       String?
+  embedding         Unsupported("vector(512)")?
+  embeddingProvider String?
+  embeddingModel    String?
+  embeddingVersion  String?
+  embeddedAt        DateTime?
+  createdAt         DateTime                    @default(now())
 
   @@index([docId])
+  @@unique([docId, ordinal])
 }
 
 model AuditLog {

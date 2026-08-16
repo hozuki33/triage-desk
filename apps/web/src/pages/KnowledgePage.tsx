@@ -1,7 +1,7 @@
-import { Button, Card, Form, Input, Modal, Progress, Space, Table, Tag, Typography, Upload, message } from "antd";
+import { Button, Card, Form, Input, Modal, Progress, Select, Space, Table, Tag, Typography, Upload, message } from "antd";
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { api, type KnowledgeDoc, type RetrievalEvaluation } from "../api";
+import { api, categoryLabel, type KnowledgeDoc, type RetrievalEvaluationSuite } from "../api";
 import { getUser } from "../session";
 
 export function KnowledgePage() {
@@ -10,9 +10,10 @@ export function KnowledgePage() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
-  const [evaluation, setEvaluation] = useState<RetrievalEvaluation | null>(null);
+  const [evaluation, setEvaluation] = useState<RetrievalEvaluationSuite | null>(null);
   const [evaluating, setEvaluating] = useState(false);
-  const [form] = Form.useForm<{ title: string; content: string }>();
+  const [reindexing, setReindexing] = useState(false);
+  const [form] = Form.useForm<{ title: string; content: string; category?: string }>();
 
   async function load() {
     setLoading(true);
@@ -47,6 +48,23 @@ export function KnowledgePage() {
         </div>
         <Space>
           <Button
+            loading={reindexing}
+            onClick={() => {
+              setReindexing(true);
+              void api
+                .reindexKnowledge()
+                .then(async (data) => {
+                  const vectorReady = data.results.filter((item) => item.status === "ready").length;
+                  message.success(`已重建 ${data.results.length} 篇，${vectorReady} 篇向量就绪`);
+                  await load();
+                })
+                .catch((err) => message.error(err instanceof Error ? err.message : "重建失败"))
+                .finally(() => setReindexing(false));
+            }}
+          >
+            重建向量索引
+          </Button>
+          <Button
             loading={evaluating}
             onClick={() => {
               setEvaluating(true);
@@ -65,17 +83,27 @@ export function KnowledgePage() {
         </Space>
       </Space>
       {evaluation ? (
-        <Card title="检索评测" style={{ marginBottom: 16 }}>
-          <Space size="large" wrap>
-            <Progress type="circle" size={88} percent={Math.round(evaluation.accuracy * 100)} />
-            <div>
-              <Typography.Text strong>
-                {evaluation.passed}/{evaluation.total} 用例通过
-              </Typography.Text>
-              <Typography.Paragraph type="secondary" style={{ margin: "6px 0 0" }}>
-                相关问题 Top-1 {Math.round(evaluation.relevantTop1Accuracy * 100)}% · 无关问题拒绝率 {Math.round(evaluation.rejectionAccuracy * 100)}%
-              </Typography.Paragraph>
-            </div>
+        <Card title="检索评测对照" style={{ marginBottom: 16 }}>
+          <Space size="middle" align="start" wrap>
+            {(["lexical", "vector", "hybrid"] as const).map((mode) => {
+              const result = evaluation.modes[mode];
+              const label = mode === "lexical" ? "关键词基线" : mode === "vector" ? "纯向量" : "混合 RAG";
+              return (
+                <Card key={mode} size="small" title={label} style={{ width: 280 }}>
+                  <Space align="start">
+                    <Progress type="circle" size={68} percent={Math.round(result.accuracy * 100)} />
+                    <div>
+                      <Typography.Text strong>{result.passed}/{result.total} 通过</Typography.Text>
+                      <Typography.Paragraph type="secondary" style={{ margin: "5px 0 0", fontSize: 12 }}>
+                        Top-1 {Math.round(result.relevantTop1Accuracy * 100)}% · Hit@3 {Math.round(result.hitAt3 * 100)}%
+                        <br />MRR {result.meanReciprocalRank.toFixed(2)} · 拒答 {Math.round(result.rejectionAccuracy * 100)}%
+                        <br />平均 {result.averageLatencyMs.toFixed(1)} ms
+                      </Typography.Paragraph>
+                    </div>
+                  </Space>
+                </Card>
+              );
+            })}
           </Space>
         </Card>
       ) : null}
@@ -86,10 +114,34 @@ export function KnowledgePage() {
         columns={[
           { title: "标题", dataIndex: "title" },
           {
+            title: "业务分类",
+            dataIndex: "category",
+            width: 120,
+            render: (value: string | null) => value ? <Tag>{categoryLabel[value] ?? value}</Tag> : <Typography.Text type="secondary">通用</Typography.Text>,
+          },
+          {
             title: "状态",
             dataIndex: "status",
             width: 110,
-            render: (value: string) => <Tag color={value === "ready" ? "green" : "gold"}>{value}</Tag>,
+            render: (value: string, row: KnowledgeDoc) => (
+              <Space direction="vertical" size={2}>
+                <Tag color={value === "ready" ? "green" : value === "ready_lexical" ? "gold" : "blue"}>
+                  {value === "ready" ? "向量就绪" : value === "ready_lexical" ? "仅关键词" : "索引中"}
+                </Tag>
+                {row.indexErrorCode ? <Typography.Text type="secondary" style={{ fontSize: 11 }}>{row.indexErrorCode}</Typography.Text> : null}
+              </Space>
+            ),
+          },
+          {
+            title: "Embedding",
+            width: 230,
+            render: (_: unknown, row: KnowledgeDoc) => row.embedding?.embeddingModel ? (
+              <div>
+                <Typography.Text>{row.embedding.embeddingModel}</Typography.Text>
+                <br />
+                <Typography.Text type="secondary" style={{ fontSize: 11 }}>{row.embedding.embeddingVersion}</Typography.Text>
+              </div>
+            ) : <Typography.Text type="secondary">未生成</Typography.Text>,
           },
           { title: "切分数", dataIndex: "chunkCount", width: 100 },
           {
@@ -134,7 +186,7 @@ export function KnowledgePage() {
           onFinish={async (values) => {
             setPending(true);
             try {
-              await api.createKnowledge(values.title, values.content);
+              await api.createKnowledge(values.title, values.content, values.category);
               message.success("已切分入库");
               setOpen(false);
               form.resetFields();
@@ -151,6 +203,13 @@ export function KnowledgePage() {
           </Form.Item>
           <Form.Item name="content" label="正文" rules={[{ required: true, min: 10 }]}>
             <Input.TextArea rows={10} placeholder="粘贴 txt / markdown 条文" />
+          </Form.Item>
+          <Form.Item name="category" label="业务分类（用于 Agent 元数据过滤）">
+            <Select
+              allowClear
+              placeholder="不选则作为通用知识"
+              options={Object.entries(categoryLabel).map(([value, label]) => ({ value, label }))}
+            />
           </Form.Item>
           <Upload
             accept=".txt,.md"

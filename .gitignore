@@ -4,6 +4,7 @@ dist
 *.db
 *.db-journal
 .pg-data
+.model-cache/
 apps/api/prisma/dev.db
 apps/api/generated
 .DS_Store

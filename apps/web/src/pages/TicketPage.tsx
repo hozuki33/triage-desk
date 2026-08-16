@@ -27,6 +27,13 @@ const fallbackLabel = {
   provider_error: "模型服务异常，已转人工处理",
 } as const;
 
+const retrievalModeLabel = {
+  hybrid: { text: "混合 RAG", color: "green" },
+  vector_only: { text: "向量检索", color: "cyan" },
+  lexical_fallback: { text: "关键词降级", color: "gold" },
+  lexical_only: { text: "仅关键词", color: "default" },
+} as const;
+
 function latestDraft(ticket: Ticket) {
   return [...ticket.replies]
     .reverse()
@@ -225,6 +232,11 @@ export function TicketPage() {
                   {item.output.executionStatus ? (
                     <Tag color={executionLabel[item.output.executionStatus].color} style={{ marginInlineStart: 8 }}>
                       {executionLabel[item.output.executionStatus].text}
+                    </Tag>
+                  ) : null}
+                  {item.output.mode ? (
+                    <Tag color={retrievalModeLabel[item.output.mode].color} style={{ marginInlineStart: 8 }}>
+                      {retrievalModeLabel[item.output.mode].text}
                     </Tag>
                   ) : null}
                   {item.confidence != null ? (

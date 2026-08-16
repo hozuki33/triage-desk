@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma.js";
-import { retrieveKnowledge } from "../lib/knowledge.js";
+import { retrieveKnowledgeWithMetadata } from "../lib/knowledge.js";
 import { transition } from "../lib/ticket-state.js";
 import { applyTicketChange, HttpError } from "../lib/ticket-lock.js";
 import { classifyTicket, draftTicket } from "./tools.js";
@@ -66,7 +66,8 @@ export async function runTicketAgent(
   }
 
   const retrieveStarted = Date.now();
-  const hits = await retrieveKnowledge(`${ticket.title}\n${ticket.content}`, 3);
+  const retrieval = await retrieveKnowledgeWithMetadata(`${ticket.title}\n${ticket.content}`, 3, classified.category);
+  const hits = retrieval.hits;
   await trace({
     ticketId,
     toolName: "retrieve",
@@ -74,6 +75,9 @@ export async function runTicketAgent(
     output: {
       count: hits.length,
       titles: hits.map((hit) => hit.title),
+      mode: retrieval.mode,
+      vectorStatus: retrieval.vectorStatus,
+      durationMs: retrieval.durationMs,
     },
     confidence: hits[0] ? Math.min(1, hits[0].score / 10) : 0,
     startedAt: retrieveStarted,

@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 const tickets = await prisma.ticket.findMany({
@@ -39,11 +39,17 @@ function objectValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-function compact(value: Record<string, unknown>): Record<string, unknown> {
-  return JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+function compact(value: Record<string, unknown>): Prisma.InputJsonObject {
+  const result: Record<string, Prisma.InputJsonValue> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (typeof item === "string" || typeof item === "boolean") result[key] = item;
+    else if (typeof item === "number" && Number.isFinite(item)) result[key] = item;
+    else if (Array.isArray(item)) result[key] = item.filter((entry): entry is string => typeof entry === "string");
+  }
+  return result;
 }
 
-function safeOutput(toolName: string, value: unknown) {
+function safeOutput(toolName: string, value: unknown): Prisma.InputJsonObject {
   const source = objectValue(value);
   const common = {
     provider: source.provider,
